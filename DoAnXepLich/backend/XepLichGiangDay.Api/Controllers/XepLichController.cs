@@ -9,10 +9,11 @@ namespace XepLichGiangDay.Api.Controllers;
 [Route("api/xep-lich")]
 public class XepLichController(
     IEnumerable<ISchedulingAlgorithm> algorithms,
-    XepLichService xepLichService) : ControllerBase
+    XepLichService xepLichService,
+    HocKyLockService lockService) : ControllerBase
 {
     [HttpPost]
-    public async Task<ActionResult<KetQuaXepLichDto>> ChayXepLich(YeuCauXepLichDto request, CancellationToken cancellationToken)
+    public async Task<ActionResult<KetQuaXepLichDto>> ChayXepLich([FromBody] YeuCauXepLichDto request, CancellationToken cancellationToken)
     {
         var thuatToan = request.ThuatToan.Trim().ToUpperInvariant();
         var algorithm = algorithms.FirstOrDefault(x => x.TenThuatToan == thuatToan);
@@ -22,25 +23,42 @@ public class XepLichController(
             return BadRequest("Thuat toan chi ho tro GA hoac CP_SAT.");
         }
 
-        var duLieu = new DuLieuXepLichDto
+        var sem = lockService.GetLock(request.MaHocKy);
+        if (!await sem.WaitAsync(0, cancellationToken))
         {
-            MaHocKy = request.MaHocKy,
-            ThuatToan = thuatToan,
-            KichThuocQuanThe = request.KichThuocQuanThe,
-            SoTheHe = request.SoTheHe,
-            TyLeLaiGhep = request.TyLeLaiGhep,
-            TyLeDotBien = request.TyLeDotBien,
-            ThoiGianChayToiDa = request.ThoiGianChayToiDa,
-            SoLuongWorker = request.SoLuongWorker,
-            KhoangCachToiUuGap = request.KhoangCachToiUuGap,
-            RandomSeed = request.RandomSeed,
-            KichThuocGiaiDau = request.KichThuocGiaiDau,
-            SoCaTheUuTu = request.SoCaTheUuTu
-        };
+            return Conflict(new ProblemDetails
+            {
+                Title = "Xung đột tiến trình xếp lịch",
+                Detail = $"Học kỳ {request.MaHocKy} đang có một tiến trình xếp lịch đang chạy. Vui lòng đợi hoàn tất trước khi gửi yêu cầu mới.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
 
+        try
+        {
+            var duLieu = new DuLieuXepLichDto
+            {
+                MaHocKy = request.MaHocKy,
+                ThuatToan = thuatToan,
+                KichThuocQuanThe = request.KichThuocQuanThe,
+                SoTheHe = request.SoTheHe,
+                TyLeLaiGhep = request.TyLeLaiGhep,
+                TyLeDotBien = request.TyLeDotBien,
+                ThoiGianChayToiDa = request.ThoiGianChayToiDa,
+                SoLuongWorker = request.SoLuongWorker,
+                KhoangCachToiUuGap = request.KhoangCachToiUuGap,
+                RandomSeed = request.RandomSeed,
+                KichThuocGiaiDau = request.KichThuocGiaiDau,
+                SoCaTheUuTu = request.SoCaTheUuTu
+            };
 
-        var ketQua = await algorithm.ChayAsync(duLieu, cancellationToken);
-        return Ok(ketQua);
+            var ketQua = await algorithm.ChayAsync(duLieu, cancellationToken);
+            return Ok(ketQua);
+        }
+        finally
+        {
+            sem.Release();
+        }
     }
 
     /// <summary>

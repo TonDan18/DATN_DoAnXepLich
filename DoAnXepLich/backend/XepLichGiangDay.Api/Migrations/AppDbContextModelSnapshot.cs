@@ -646,7 +646,8 @@ namespace XepLichGiangDay.Api.Migrations
 
                     b.HasIndex("MaHocKy");
 
-                    b.HasIndex("MaLopHocPhan");
+                    b.HasIndex("MaLopHocPhan")
+                        .IsUnique();
 
                     b.ToTable("phan_cong_giang_day", (string)null);
                 });

@@ -89,7 +89,8 @@ public class CpSatAlgorithmTests
         using var context = new AppDbContext(options);
         var boKiemTra = new BoKiemTraRangBuoc();
         var boDanhGia = new BoDanhGiaPhuongAn(context, boKiemTra);
-        var cpSatService = new CpSatAlgorithmService(context, boDanhGia, boKiemTra);
+        var luuKetQuaService = new LuuKetQuaXepLichService(context, boDanhGia);
+        var cpSatService = new CpSatAlgorithmService(context, boDanhGia, boKiemTra, luuKetQuaService);
 
         // Tạo 1 lớp học để không bị trả về sớm KhongCoLop
         context.LopHocPhan.Add(new LopHocPhan

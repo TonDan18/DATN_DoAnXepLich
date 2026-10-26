@@ -10,7 +10,8 @@ namespace XepLichGiangDay.Api.Services.ThuatToan.Genetic;
 public class GeneticAlgorithmService(
     AppDbContext context,
     BoDanhGiaPhuongAn boDanhGia,
-    TaoDanhSachUngVien taoUngVien) : ISchedulingAlgorithm
+    TaoDanhSachUngVien taoUngVien,
+    LuuKetQuaXepLichService luuKetQuaService) : ISchedulingAlgorithm
 {
     public string TenThuatToan => "GA";
 
@@ -38,7 +39,8 @@ public class GeneticAlgorithmService(
 
         var phanCongKhoa = dsPhanCongHienTai
             .Where(x => x.TrangThai == "DaKhoa")
-            .ToDictionary(x => x.MaLopHocPhan, x => x.MaGiangVien);
+            .GroupBy(x => x.MaLopHocPhan)
+            .ToDictionary(g => g.Key, g => g.First().MaGiangVien);
         var cacLopCoDinh = phanCongKhoa.Keys.ToHashSet();
 
         // 3. Tạo danh sách ứng viên chuyên môn cho từng lớp học phần
@@ -323,73 +325,22 @@ public class GeneticAlgorithmService(
             };
         }
 
-        // KHI NGHIỆM THỎA MÃN 100% RÀNG BUỘC CỨNG: Cập nhật CSDL an toàn
-        var transaction = isRelational ? await context.Database.BeginTransactionAsync(cancellationToken) : null;
-        try
-        {
-            var mapPc = dsPhanCongHienTai.ToDictionary(x => x.MaLopHocPhan);
+        // KHI NGHIỆM THỎA MÃN 100% RÀNG BUỘC CỨNG: Cập nhật CSDL an toàn qua LuuKetQuaXepLichService
+        var dictPhanCongCuoi = bestOverall.DanhSachGen.ToDictionary(g => g.MaLopHocPhan, g => (int?)g.MaGiangVien);
+        var ketQuaLuu = await luuKetQuaService.LuuPhanCongAsync(
+            duLieu.MaHocKy,
+            TenThuatToan,
+            dictPhanCongCuoi,
+            boiCanh,
+            cancellationToken);
 
-            foreach (var gen in bestOverall.DanhSachGen)
-            {
-                if (!gen.MaGiangVien.HasValue || gen.MaGiangVien.Value <= 0) continue;
+        string thongBaoKhoa = ketQuaLuu.SoLopGiuKhoa > 0
+            ? $" ({ketQuaLuu.SoLopGiuKhoa} lớp đã khóa được giữ nguyên phân công)."
+            : "";
 
-                int maLop = gen.MaLopHocPhan;
-                int maGv = gen.MaGiangVien.Value;
-                bool daKhoa = cacLopCoDinh.Contains(maLop);
-                double diemPhatLop = boDanhGia.TinhDiemNguyenVong(maGv, maLop, boiCanh);
-
-                if (mapPc.TryGetValue(maLop, out var pc))
-                {
-                    if (!daKhoa)
-                    {
-                        pc.MaGiangVien = maGv;
-                        pc.NguonPhanCong = "GA";
-                        pc.TrangThai = "DuKien";
-                        pc.DiemPhat = Math.Round(diemPhatLop, 1);
-                    }
-                }
-                else
-                {
-                    context.PhanCongGiangDay.Add(new PhanCongGiangDay
-                    {
-                        MaHocKy = duLieu.MaHocKy,
-                        MaLopHocPhan = maLop,
-                        MaGiangVien = maGv,
-                        NguonPhanCong = "GA",
-                        TrangThai = daKhoa ? "DaKhoa" : "DuKien",
-                        DiemPhat = Math.Round(diemPhatLop, 1)
-                    });
-                }
-            }
-
-            // Ghi nhật ký vào ket_qua_xep_lich
-            var oldKetQua = await context.KetQuaXepLich
-                .Where(x => x.MaHocKy == duLieu.MaHocKy)
-                .ToListAsync(cancellationToken);
-            context.KetQuaXepLich.RemoveRange(oldKetQua);
-
-            foreach (var gen in bestOverall.DanhSachGen)
-            {
-                if (gen.MaGiangVien.HasValue && gen.MaGiangVien.Value > 0)
-                {
-                    double diemPhatLop = boDanhGia.TinhDiemNguyenVong(gen.MaGiangVien.Value, gen.MaLopHocPhan, boiCanh);
-                    context.KetQuaXepLich.Add(new KetQuaXepLich
-                    {
-                        MaHocKy = duLieu.MaHocKy,
-                        MaLopHocPhan = gen.MaLopHocPhan,
-                        MaGiangVien = gen.MaGiangVien.Value,
-                        DiemPhat = Math.Round(diemPhatLop, 1),
-                        GhiChu = $"GA thế hệ {theHeThucTe}"
-                    });
-                }
-            }
-
-            await context.SaveChangesAsync(cancellationToken);
-            if (transaction != null) await transaction.CommitAsync(cancellationToken);
-
-            string trangThaiKetQua = finalCheck.TongDiemPhatMem <= 0.0001
-                ? "ToiUuTuyetDoi"
-                : "ThoaManRangBuocCung";
+        string trangThaiKetQua = finalCheck.TongDiemPhatMem <= 0.0001
+            ? "ToiUuTuyetDoi"
+            : "ThoaManRangBuocCung";
 
             return new KetQuaXepLichDto
             {
@@ -406,24 +357,14 @@ public class GeneticAlgorithmService(
                 ThoiGianChayMiligiay = sw.ElapsedMilliseconds,
                 ThoiGianChayGiay = Math.Round(sw.Elapsed.TotalSeconds, 2),
                 TrangThai = trangThaiKetQua,
-                ThongDiep = trangThaiKetQua == "ToiUuTuyetDoi"
+                ThongDiep = (trangThaiKetQua == "ToiUuTuyetDoi"
                     ? $"GA tìm thấy phương án tối ưu tuyệt đối (điểm phạt = 0) tại thế hệ {theHeThucTe}."
-                    : $"GA tìm thấy phương án thỏa mãn 100% ràng buộc cứng sau {theHeThucTe} thế hệ (Tổng điểm phạt mềm: {Math.Round(finalCheck.TongDiemPhatMem, 1)}).",
+                    : $"GA tìm thấy phương án thỏa mãn 100% ràng buộc cứng sau {theHeThucTe} thế hệ (Tổng điểm phạt mềm: {Math.Round(finalCheck.TongDiemPhatMem, 1)}).") + thongBaoKhoa,
                 LichSuDiemPhatTheoTheHe = lichSuDiemPhat,
                 DanhSachViPham = finalCheck.DanhSachViPham,
                 ChiTietViPham = finalCheck.DanhSachCanhBaoMem,
                 DanhSachPhanCong = dsPhanCongDto
             };
-        }
-        catch
-        {
-            if (transaction != null) await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
-        finally
-        {
-            transaction?.Dispose();
-        }
     }
 
     private static CaThe SaoChepCaThe(CaThe goc)

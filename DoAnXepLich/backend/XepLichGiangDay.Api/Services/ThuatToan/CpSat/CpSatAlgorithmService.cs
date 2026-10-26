@@ -11,7 +11,8 @@ namespace XepLichGiangDay.Api.Services.ThuatToan.CpSat;
 public class CpSatAlgorithmService(
     AppDbContext context,
     BoDanhGiaPhuongAn boDanhGia,
-    BoKiemTraRangBuoc boKiemTra) : ISchedulingAlgorithm
+    BoKiemTraRangBuoc boKiemTra,
+    LuuKetQuaXepLichService luuKetQuaService) : ISchedulingAlgorithm
 {
     public string TenThuatToan => "CP_SAT";
 
@@ -331,44 +332,46 @@ public class CpSatAlgorithmService(
                 }
             }
 
-            // Cập nhật CSDL bảng phan_cong_giang_day
-            var dsPhanCongHienTai = await context.PhanCongGiangDay
-                .Where(x => x.MaHocKy == duLieu.MaHocKy)
-                .ToListAsync(cancellationToken);
-            var mapPc = dsPhanCongHienTai.ToDictionary(x => x.MaLopHocPhan);
-
-            foreach (var (maLop, maGvOpt) in phanCongDict)
-            {
-                if (!maGvOpt.HasValue) continue;
-                int maGv = maGvOpt.Value;
-                bool daKhoa = dsLopKhoa.ContainsKey(maLop);
-
-                if (mapPc.TryGetValue(maLop, out var pc))
-                {
-                    if (!daKhoa)
-                    {
-                        pc.MaGiangVien = maGv;
-                        pc.NguonPhanCong = "CP_SAT";
-                        pc.TrangThai = "DuKien";
-                    }
-                }
-                else
-                {
-                    context.PhanCongGiangDay.Add(new PhanCongGiangDay
-                    {
-                        MaHocKy = duLieu.MaHocKy,
-                        MaLopHocPhan = maLop,
-                        MaGiangVien = maGv,
-                        NguonPhanCong = "CP_SAT",
-                        TrangThai = daKhoa ? "DaKhoa" : "DuKien",
-                        DiemPhat = 0
-                    });
-                }
-            }
-            await context.SaveChangesAsync(cancellationToken);
-
-            // Đánh giá lại toàn diện bằng BoDanhGiaPhuongAn để xuất điểm phạt và chi tiết vi phạm
+            // Đánh giá lại toàn diện bằng BoDanhGiaPhuongAn để kiểm tra ràng buộc cứng trước khi ghi CSDL
             var danhGia = boDanhGia.DanhGia(phanCongDict, boiCanh);
+
+            // Nếu còn vi phạm ràng buộc cứng: TUYỆT ĐỐI KHÔNG GHI CSDL
+            if (!danhGia.HopLe)
+            {
+                return new KetQuaXepLichDto
+                {
+                    ThuatToan = TenThuatToan,
+                    TrangThai = "ConViPham",
+                    TongDiemPhat = danhGia.TongDiemPhat,
+                    DoThichNghi = danhGia.DoThichNghi,
+                    DiemPhatRangBuocCung = danhGia.DiemPhatRangBuocCung,
+                    DiemPhatNguyenVong = danhGia.DiemPhatNguyenVong,
+                    DiemPhatCanBangTai = danhGia.DiemPhatCanBangTai,
+                    DiemPhatGomLich = danhGia.DiemPhatGomLich,
+                    SoViPhamCung = danhGia.SoViPhamCung,
+                    SoLopChuaPhanCong = danhGia.SoLopChuaPhanCong,
+                    ThoiGianChayGiay = Math.Round(stopwatch.Elapsed.TotalSeconds, 2),
+                    ThoiGianChayMiligiay = stopwatch.ElapsedMilliseconds,
+                    SoLuongBien = model.Model.Variables.Count,
+                    SoLuongRangBuoc = model.Model.Constraints.Count,
+                    ThongDiep = $"CP-SAT tìm thấy nghiệm nhưng còn vi phạm {danhGia.SoViPhamCung} ràng buộc cứng. Không lưu CSDL.",
+                    DanhSachViPham = danhGia.DanhSachViPham,
+                    ChiTietViPham = danhGia.DanhSachCanhBaoMem,
+                    DanhSachPhanCong = dsPhanCongDto
+                };
+            }
+
+            // Cập nhật CSDL an toàn thông qua LuuKetQuaXepLichService (có Transaction & bảo vệ lớp DaKhoa)
+            var ketQuaLuu = await luuKetQuaService.LuuPhanCongAsync(
+                duLieu.MaHocKy,
+                TenThuatToan,
+                phanCongDict,
+                boiCanh,
+                cancellationToken);
+
+            string thongBaoKhoa = ketQuaLuu.SoLopGiuKhoa > 0
+                ? $" ({ketQuaLuu.SoLopGiuKhoa} lớp đã khóa được giữ nguyên phân công)."
+                : "";
 
             return new KetQuaXepLichDto
             {
@@ -386,9 +389,9 @@ public class CpSatAlgorithmService(
                 ThoiGianChayMiligiay = stopwatch.ElapsedMilliseconds,
                 SoLuongBien = model.Model.Variables.Count,
                 SoLuongRangBuoc = model.Model.Constraints.Count,
-                ThongDiep = status == CpSolverStatus.Optimal
+                ThongDiep = (status == CpSolverStatus.Optimal
                     ? "Tìm thấy phương án tối ưu toàn cục (Optimal) thỏa mãn 100% ràng buộc cứng."
-                    : "Tìm thấy phương án khả thi (Feasible) thỏa mãn 100% ràng buộc cứng.",
+                    : "Tìm thấy phương án khả thi (Feasible) thỏa mãn 100% ràng buộc cứng.") + thongBaoKhoa,
                 DanhSachPhanCong = dsPhanCongDto,
                 DanhSachViPham = danhGia.DanhSachViPham,
                 ChiTietViPham = danhGia.DanhSachCanhBaoMem

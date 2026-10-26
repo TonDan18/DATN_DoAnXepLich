@@ -56,6 +56,8 @@ builder.Services.AddScoped<NguyenVongService>();
 builder.Services.AddScoped<XepLichService>();
 
 // Dang ky rang buoc & thuat toan xep lich (Strategy Pattern)
+builder.Services.AddSingleton<HocKyLockService>();
+builder.Services.AddScoped<LuuKetQuaXepLichService>();
 builder.Services.AddScoped<BoKiemTraRangBuoc>();
 builder.Services.AddScoped<BoDanhGiaPhuongAn>();
 builder.Services.AddScoped<TaoDanhSachUngVien>();

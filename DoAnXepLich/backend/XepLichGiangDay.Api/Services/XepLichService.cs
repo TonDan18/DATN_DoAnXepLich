@@ -42,7 +42,7 @@ public class XepLichService(
         var dsPhanCong = await context.PhanCongGiangDay
             .Where(x => x.MaHocKy == maHocKy)
             .ToListAsync(cancellationToken);
-        var phanCongTheoLop = dsPhanCong.ToDictionary(x => x.MaLopHocPhan);
+        var phanCongTheoLop = dsPhanCong.GroupBy(x => x.MaLopHocPhan).ToDictionary(g => g.Key, g => g.First());
 
         // 4. Lấy giảng viên, năng lực giảng dạy, lịch bận
         var dsGiangVien = await context.GiangVien

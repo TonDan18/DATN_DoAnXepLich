@@ -662,7 +662,8 @@ public class GeneticAlgorithmTests
 
         var boDanhGia = new BoDanhGiaPhuongAn(db, new BoKiemTraRangBuoc());
         var taoUngVien = new TaoDanhSachUngVien(db);
-        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien);
+        var luuKetQuaService = new LuuKetQuaXepLichService(db, boDanhGia);
+        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien, luuKetQuaService);
 
         var duLieu = new DuLieuXepLichDto
         {
@@ -728,7 +729,8 @@ public class GeneticAlgorithmTests
 
         var boDanhGia = new BoDanhGiaPhuongAn(db, new BoKiemTraRangBuoc());
         var taoUngVien = new TaoDanhSachUngVien(db);
-        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien);
+        var luuKetQuaService = new LuuKetQuaXepLichService(db, boDanhGia);
+        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien, luuKetQuaService);
 
         var duLieu = new DuLieuXepLichDto
         {
@@ -762,7 +764,8 @@ public class GeneticAlgorithmTests
 
         var boDanhGia = new BoDanhGiaPhuongAn(db, new BoKiemTraRangBuoc());
         var taoUngVien = new TaoDanhSachUngVien(db);
-        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien);
+        var luuKetQuaService = new LuuKetQuaXepLichService(db, boDanhGia);
+        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien, luuKetQuaService);
 
         var duLieu = new DuLieuXepLichDto
         {
@@ -810,7 +813,8 @@ public class GeneticAlgorithmTests
 
         var boDanhGia = new BoDanhGiaPhuongAn(db, new BoKiemTraRangBuoc());
         var taoUngVien = new TaoDanhSachUngVien(db);
-        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien);
+        var luuKetQuaService = new LuuKetQuaXepLichService(db, boDanhGia);
+        var gaService = new GeneticAlgorithmService(db, boDanhGia, taoUngVien, luuKetQuaService);
 
         var duLieu = new DuLieuXepLichDto
         {

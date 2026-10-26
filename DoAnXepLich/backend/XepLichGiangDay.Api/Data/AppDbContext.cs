@@ -168,6 +168,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<PhanCongGiangDay>(b =>
         {
             b.ToTable("phan_cong_giang_day").HasKey(x => x.MaPhanCong);
+            b.HasIndex(x => x.MaLopHocPhan).IsUnique();
             b.HasOne<LopHocPhan>()
              .WithMany()
              .HasForeignKey(x => x.MaLopHocPhan)

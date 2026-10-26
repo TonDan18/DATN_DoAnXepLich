@@ -5,6 +5,7 @@ using XepLichGiangDay.Api.Data;
 using XepLichGiangDay.Api.DTOs.XepLich;
 using XepLichGiangDay.Api.Models.Entities;
 using XepLichGiangDay.Api.Services.RangBuoc;
+using XepLichGiangDay.Api.Services.ThuatToan;
 using XepLichGiangDay.Api.Services.ThuatToan.CpSat;
 using XepLichGiangDay.Api.Services.ThuatToan.Genetic;
 using Xunit;

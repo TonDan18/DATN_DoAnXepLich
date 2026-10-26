@@ -287,14 +287,28 @@ public class CpSatAlgorithmService(
 
         // 6. CẤU HÌNH BỘ GIẢI CP-SAT SOLVER VỚI THÔNG SỐ TỐI ƯU (Mặc định 1 luồng để đảm bảo tính tất định & nhất quán)
         var solver = new CpSolver();
-        int numWorkers = duLieu.SoLuongWorker.HasValue && duLieu.SoLuongWorker.Value > 0 ? duLieu.SoLuongWorker.Value : 1;
-        double maxTime = duLieu.ThoiGianChayToiDa ?? 30.0;
-        solver.StringParameters = $"max_time_in_seconds:{maxTime},num_search_workers:{numWorkers},log_search_progress:false";
+        int maxWorkers = Math.Max(1, Environment.ProcessorCount);
+        int numWorkers = Math.Clamp(duLieu.SoLuongWorker ?? 1, 1, Math.Min(maxWorkers, 32));
+        double maxTime = Math.Clamp(duLieu.ThoiGianChayToiDa ?? 30.0, 1.0, 300.0);
+        double relGap = duLieu.KhoangCachToiUuGap.HasValue ? Math.Clamp(duLieu.KhoangCachToiUuGap.Value, 0.0, 1.0) : 0.01;
+
+        // Sử dụng CultureInfo.InvariantCulture để tránh lỗi Native Abort của C++ OR-Tools khi chạy dưới vi-VN
+        solver.StringParameters = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"max_time_in_seconds:{maxTime},num_search_workers:{numWorkers},relative_gap_limit:{relGap},log_search_progress:false");
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var registration = cancellationToken.Register(() => solver.StopSearch());
 
         // 7. TIẾN HÀNH GIẢI BÀI TOÁN
         var stopwatch = Stopwatch.StartNew();
         var status = solver.Solve(model);
         stopwatch.Stop();
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
         // 8. ĐÁNH GIÁ VÀ LƯU KẾT QUẢ
         if (status == CpSolverStatus.Optimal || status == CpSolverStatus.Feasible)

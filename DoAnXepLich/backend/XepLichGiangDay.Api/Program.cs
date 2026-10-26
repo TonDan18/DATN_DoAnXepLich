@@ -1,10 +1,15 @@
- using Microsoft.EntityFrameworkCore;
+ using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using XepLichGiangDay.Api.Data;
 using XepLichGiangDay.Api.Services;
 using XepLichGiangDay.Api.Services.RangBuoc;
 using XepLichGiangDay.Api.Services.ThuatToan;
 using XepLichGiangDay.Api.Services.ThuatToan.CpSat;
 using XepLichGiangDay.Api.Services.ThuatToan.Genetic;
+
+// Thiet lap InvariantCulture mac dinh toan he thong tranh loi dau phay thap phan vi-VN khi parse/format so thuc
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 

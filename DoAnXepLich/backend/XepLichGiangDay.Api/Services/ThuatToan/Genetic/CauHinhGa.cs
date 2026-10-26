@@ -16,17 +16,13 @@ public class CauHinhGa
     /// </summary>
     public void ChuanHoaVaXacThuc()
     {
-        if (KichThuocQuanThe < 4) KichThuocQuanThe = 4;
-        if (SoTheHe < 1) SoTheHe = 1;
-        if (TyLeLaiGhep < 0.0) TyLeLaiGhep = 0.0;
-        if (TyLeLaiGhep > 1.0) TyLeLaiGhep = 1.0;
-        if (TyLeDotBien < 0.0) TyLeDotBien = 0.0;
-        if (TyLeDotBien > 1.0) TyLeDotBien = 1.0;
-        if (KichThuocGiaiDau < 2) KichThuocGiaiDau = 2;
-        if (KichThuocGiaiDau > KichThuocQuanThe) KichThuocGiaiDau = KichThuocQuanThe;
-        if (SoCaTheUuTu < 1) SoCaTheUuTu = 1;
-        if (SoCaTheUuTu >= KichThuocQuanThe) SoCaTheUuTu = KichThuocQuanThe / 2;
-        if (ThoiGianChayToiDaGiay <= 0) ThoiGianChayToiDaGiay = 30.0;
+        KichThuocQuanThe = Math.Clamp(KichThuocQuanThe, 4, 500);
+        SoTheHe = Math.Clamp(SoTheHe, 1, 5000);
+        TyLeLaiGhep = Math.Clamp(TyLeLaiGhep, 0.0, 1.0);
+        TyLeDotBien = Math.Clamp(TyLeDotBien, 0.0, 1.0);
+        KichThuocGiaiDau = Math.Clamp(KichThuocGiaiDau, 2, Math.Min(50, KichThuocQuanThe));
+        SoCaTheUuTu = Math.Clamp(SoCaTheUuTu, 1, Math.Min(50, KichThuocQuanThe / 2));
+        ThoiGianChayToiDaGiay = Math.Clamp(ThoiGianChayToiDaGiay <= 0 ? 30.0 : ThoiGianChayToiDaGiay, 1.0, 300.0);
     }
 }
 

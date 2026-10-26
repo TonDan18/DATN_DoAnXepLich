@@ -94,14 +94,50 @@ public class CpSatAlgorithmService(
             // Nếu một lớp không có bất kỳ giảng viên hợp lệ nào => Bài toán vô nghiệm ngay từ miền giá trị
             if (ungVienTheoLop[maLop].Count == 0)
             {
+                string msg = $"Lớp [{lop.MaLopHocPhanTruong} - {lop.TenLop}] không có giảng viên nào đủ chuyên môn và rảnh lịch bận cố định.";
                 return new KetQuaXepLichDto
                 {
                     ThuatToan = TenThuatToan,
-                    TongDiemPhat = 0,
+                    TongDiemPhat = 1000,
+                    SoViPhamCung = 1,
+                    SoLopChuaPhanCong = 1,
                     TrangThai = "VoNghiem",
-                    ThongDiep = $"Lớp [{lop.MaLopHocPhanTruong} - {lop.TenLop}] không có giảng viên nào đủ chuyên môn và rảnh lịch bận cố định."
+                    ThongDiep = msg,
+                    DanhSachViPham = [msg]
                 };
             }
+        }
+
+        // Tiền xử lý số tiết theo từng tuần của từng lớp học phần
+        var dsTuan = new HashSet<int>();
+        var soTietTheoTuanTheoLop = new Dictionary<int, Dictionary<int, int>>();
+        var tongTietHocKyTheoLop = new Dictionary<int, int>();
+
+        foreach (var lop in boiCanh.DanhSachLop)
+        {
+            int maLop = lop.MaLopHocPhan;
+            var tietTheoTuan = new Dictionary<int, int>();
+            int tongTietHk = 0;
+
+            if (boiCanh.ChiTietTheoLop.TryGetValue(maLop, out var dsCt) && dsCt.Count > 0)
+            {
+                foreach (var ct in dsCt)
+                {
+                    int soTietBuoi = ct.TietKetThuc >= ct.TietBatDau ? ct.TietKetThuc - ct.TietBatDau + 1 : 0;
+                    int tuTuan = ct.TuTuan > 0 ? ct.TuTuan : 1;
+                    int denTuan = ct.DenTuan >= tuTuan ? ct.DenTuan : tuTuan;
+
+                    for (int w = tuTuan; w <= denTuan; w++)
+                    {
+                        dsTuan.Add(w);
+                        tietTheoTuan[w] = tietTheoTuan.GetValueOrDefault(w) + soTietBuoi;
+                    }
+                    tongTietHk += soTietBuoi * (denTuan - tuTuan + 1);
+                }
+            }
+
+            soTietTheoTuanTheoLop[maLop] = tietTheoTuan;
+            tongTietHocKyTheoLop[maLop] = tongTietHk;
         }
 
         // 4. Thiết lập HỆ THỐNG 6 RÀNG BUỘC CỨNG (HARD CONSTRAINTS)
@@ -139,35 +175,49 @@ public class CpSatAlgorithmService(
             }
         }
 
-        // (H4) Định mức tiết dạy tối đa (Maximum Teaching Quota)
-        // Thiết lập ngưỡng trần an toàn tuyệt đối và biến phạt vượt giờ (Soft Penalty)
-        // Giúp bộ giải không bị vô nghiệm khi khoa thiếu giảng viên cơ hữu (tổng tiết học kỳ vượt quota lý thuyết)
-        var dsMaxQuotaTheoGv = new Dictionary<int, int>();
+        // (H4) Khống chế tải tối đa theo từng tuần thực tế (Weekly Load Hard Cap)
+        // Thay vì cộng dồn cả kỳ gây vô nghiệm giả khi dạy tách đợt (ví dụ 14 lớp chia đều 2 nửa kỳ),
+        // khống chế trần tải trên TỪNG TUẦN học cụ thể.
+        var dinhMucTheoGv = new Dictionary<int, (int MinTiet, int MaxTiet)>();
         foreach (var (maGv, dsLopCuaGv) in lopTheoGv)
         {
             if (dsLopCuaGv.Count == 0) continue;
 
-            bool isThinhGiang = boiCanh.GiangVienTheoMa.TryGetValue(maGv, out var gv) &&
-                ((gv.ChucDanh != null && gv.ChucDanh.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase)) ||
-                 gv.HoTen.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase));
+            var (minQuota, maxQuota) = BoDanhGiaPhuongAn.LayDinhMucTuan(maGv, boiCanh);
+            dinhMucTheoGv[maGv] = (minQuota, maxQuota);
 
-            int maxQuota = isThinhGiang ? 16 : 25;
-            if (boiCanh.DinhMucTheoGv.TryGetValue(maGv, out var dm) && dm.SoTietToiDa > 0)
+            // Ngưỡng trần cứng theo tuần: bảo vệ sức khỏe giảng viên (tối đa Math.Max(maxQuota + 12, 35) tiết/tuần)
+            int tranCungTuan = Math.Max(maxQuota + 12, 35);
+
+            if (dsTuan.Count > 0)
             {
-                maxQuota = dm.SoTietToiDa;
-            }
-            dsMaxQuotaTheoGv[maGv] = maxQuota;
+                foreach (var w in dsTuan)
+                {
+                    var dsBienTuan = new List<BoolVar>();
+                    var dsSoTietTuan = new List<long>();
 
-            var dsBienGv = new List<BoolVar>();
-            var dsSoTiet = new List<long>();
-            foreach (var maLop in dsLopCuaGv)
+                    foreach (var maLop in dsLopCuaGv)
+                    {
+                        int tietLopTuan = soTietTheoTuanTheoLop[maLop].GetValueOrDefault(w, 0);
+                        if (tietLopTuan > 0)
+                        {
+                            dsBienTuan.Add(xVars[(maGv, maLop)]);
+                            dsSoTietTuan.Add(tietLopTuan);
+                        }
+                    }
+
+                    if (dsBienTuan.Count > 0)
+                    {
+                        model.Add(LinearExpr.WeightedSum(dsBienTuan, dsSoTietTuan) <= tranCungTuan);
+                    }
+                }
+            }
+            else
             {
-                dsBienGv.Add(xVars[(maGv, maLop)]);
-                dsSoTiet.Add(TinhSoTiet(maLop, boiCanh));
+                var dsBienGv = dsLopCuaGv.Select(maLop => xVars[(maGv, maLop)]).ToList();
+                var dsSoTiet = dsLopCuaGv.Select(maLop => (long)TinhSoTiet(maLop, boiCanh)).ToList();
+                model.Add(LinearExpr.WeightedSum(dsBienGv, dsSoTiet) <= tranCungTuan);
             }
-
-            // Ngưỡng trần cứng tuyệt đối bảo vệ sức khỏe giảng viên (tối đa 40 tiết/tuần)
-            model.Add(LinearExpr.WeightedSum(dsBienGv, dsSoTiet) <= Math.Max(maxQuota + 16, 40));
         }
 
         // 5. THIẾT LẬP HÀM MỤC TIÊU TỐI ƯU HÓA RÀNG BUỘC MỀM (SOFT CONSTRAINTS)
@@ -191,7 +241,7 @@ public class CpSatAlgorithmService(
         {
             if (dsLopCuaGv.Count == 0) continue;
 
-            for (int thu = 2; thu <= 7; thu++)
+            for (int thu = 2; thu <= 8; thu++)
             {
                 var dsBienTrongNgay = new List<BoolVar>();
                 foreach (var maLop in dsLopCuaGv)
@@ -244,40 +294,66 @@ public class CpSatAlgorithmService(
             }
         }
 
-        // w4 * P4: Phạt độ lệch chuẩn định mức giờ dạy (thiếu tải)
+        // w4 * P4: Phạt độ lệch chuẩn định mức giờ dạy (quá tải tuần cao điểm & thiếu tải trung bình)
         long trongSoCanBang = (long)Math.Round(boiCanh.TrongSoCanBangTai * 10);
         foreach (var (maGv, dsLopCuaGv) in lopTheoGv)
         {
             if (dsLopCuaGv.Count == 0) continue;
 
-            bool isThinhGiang = boiCanh.GiangVienTheoMa.TryGetValue(maGv, out var gv) &&
-                ((gv.ChucDanh != null && gv.ChucDanh.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase)) ||
-                 gv.HoTen.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase));
+            var (minQuota, maxQuota) = dinhMucTheoGv.GetValueOrDefault(maGv, BoDanhGiaPhuongAn.LayDinhMucTuan(maGv, boiCanh));
 
-            int minQuota = isThinhGiang ? 3 : 6;
-            if (boiCanh.DinhMucTheoGv.TryGetValue(maGv, out var dm) && dm.SoTietToiThieu > 0)
+            // Biến peakLoad theo dõi tải tuần cao điểm nhất (max week load)
+            var peakLoad = model.NewIntVar(0, 100, $"peak_{maGv}");
+
+            if (dsTuan.Count > 0)
             {
-                minQuota = dm.SoTietToiThieu;
+                foreach (var w in dsTuan)
+                {
+                    var dsBienTuan = new List<BoolVar>();
+                    var dsSoTietTuan = new List<long>();
+
+                    foreach (var maLop in dsLopCuaGv)
+                    {
+                        int tietLopTuan = soTietTheoTuanTheoLop[maLop].GetValueOrDefault(w, 0);
+                        if (tietLopTuan > 0)
+                        {
+                            dsBienTuan.Add(xVars[(maGv, maLop)]);
+                            dsSoTietTuan.Add(tietLopTuan);
+                        }
+                    }
+
+                    if (dsBienTuan.Count > 0)
+                    {
+                        model.Add(peakLoad >= LinearExpr.WeightedSum(dsBienTuan, dsSoTietTuan));
+                    }
+                }
+            }
+            else
+            {
+                var dsBienGv = dsLopCuaGv.Select(maLop => xVars[(maGv, maLop)]).ToList();
+                var dsSoTiet = dsLopCuaGv.Select(maLop => (long)TinhSoTiet(maLop, boiCanh)).ToList();
+                model.Add(peakLoad >= LinearExpr.WeightedSum(dsBienGv, dsSoTiet));
             }
 
-            var dsBienGv = new List<BoolVar>();
-            var dsSoTiet = new List<long>();
-            foreach (var maLop in dsLopCuaGv)
-            {
-                dsBienGv.Add(xVars[(maGv, maLop)]);
-                dsSoTiet.Add(TinhSoTiet(maLop, boiCanh));
-            }
-
-            // Phạt thiếu tải (underload)
-            var underload = model.NewIntVar(0, minQuota, $"underload_{maGv}");
-            model.Add(LinearExpr.WeightedSum(dsBienGv, dsSoTiet) + underload >= minQuota);
-            objectiveTerms.Add(underload * trongSoCanBang);
-
-            // Phạt vượt tải (overload) khi vượt quá định mức tối đa chuẩn
-            int maxQuota = dsMaxQuotaTheoGv.GetValueOrDefault(maGv, isThinhGiang ? 16 : 25);
+            // Phạt vượt tải (overload) khi tuần cao điểm vượt quá maxQuota (hệ số 1.5 giống BoDanhGiaPhuongAn)
             var overload = model.NewIntVar(0, 50, $"overload_{maGv}");
-            model.Add(LinearExpr.WeightedSum(dsBienGv, dsSoTiet) - overload <= maxQuota);
+            model.Add(overload >= peakLoad - maxQuota);
             objectiveTerms.Add(overload * (long)Math.Round(trongSoCanBang * 1.5));
+
+            // Phạt thiếu tải (underload) so với minQuota
+            // Quy đổi tổng tiết học kỳ về tuần (chia 15 tuần chuẩn): minSemester = minQuota * 15
+            var dsBienTatCaLop = dsLopCuaGv.Select(maLop => xVars[(maGv, maLop)]).ToList();
+            var dsTongTietHk = dsLopCuaGv.Select(maLop => (long)(tongTietHocKyTheoLop.GetValueOrDefault(maLop, 0) > 0 
+                ? tongTietHocKyTheoLop[maLop] 
+                : TinhSoTiet(maLop, boiCanh) * 15)).ToList();
+
+            int minTietHocKy = minQuota * 15;
+            var underloadHocKy = model.NewIntVar(0, minTietHocKy, $"underload_{maGv}");
+            model.Add(LinearExpr.WeightedSum(dsBienTatCaLop, dsTongTietHk) + underloadHocKy >= minTietHocKy);
+
+            // underloadHocKy / 15 tương đương underload tuần; nhân với trongSoCanBang
+            long trongSoUnderload = (long)Math.Max(1, Math.Round(boiCanh.TrongSoCanBangTai * 10.0 / 15.0));
+            objectiveTerms.Add(underloadHocKy * trongSoUnderload);
         }
 
         // Đặt hàm mục tiêu tổng thể
@@ -423,6 +499,6 @@ public class CpSatAlgorithmService(
         {
             return dsCt.Sum(ct => ct.TietKetThuc >= ct.TietBatDau ? ct.TietKetThuc - ct.TietBatDau + 1 : 0);
         }
-        return 3;
+        return 0;
     }
 }

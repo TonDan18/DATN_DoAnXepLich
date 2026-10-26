@@ -397,24 +397,8 @@ public class BoDanhGiaPhuongAn
         }
 
         // Định mức chuẩn theo quy chế Nhà trường (Mục 1.4: Không quá 25 tiết/tuần đối với GV cơ hữu, 16 đối với thỉnh giảng)
-        bool isThinhGiang = boiCanh.GiangVienTheoMa.TryGetValue(maGiangVien, out var gv) &&
-            ((gv.ChucDanh != null && gv.ChucDanh.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase)) ||
-             gv.HoTen.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase));
-
-        int minTiet = isThinhGiang ? 3 : 6;
-        int maxTiet = isThinhGiang ? 16 : 25;
-
-        if (boiCanh.DinhMucTheoGv.TryGetValue(maGiangVien, out var dm))
-        {
-            if (dm.SoTietToiThieu > 0)
-            {
-                minTiet = dm.SoTietToiThieu > 30 ? (int)Math.Ceiling(dm.SoTietToiThieu / 15.0) : dm.SoTietToiThieu;
-            }
-            if (dm.SoTietToiDa > 0)
-            {
-                maxTiet = dm.SoTietToiDa > 30 ? (int)Math.Floor(dm.SoTietToiDa / 15.0) : dm.SoTietToiDa;
-            }
-        }
+        var (minTiet, maxTiet) = LayDinhMucTuan(maGiangVien, boiCanh);
+        boiCanh.GiangVienTheoMa.TryGetValue(maGiangVien, out var gv);
 
         string tenGv = gv?.HoTen ?? $"GV #{maGiangVien}";
         double diemPhat = 0;
@@ -437,6 +421,33 @@ public class BoDanhGiaPhuongAn
     public double TinhDiemCanBangTai(int maGiangVien, List<int> dsMaLopPhanCong, BoiCanhDanhGia boiCanh)
     {
         return TinhDiemCanBangTai(maGiangVien, dsMaLopPhanCong, boiCanh, out _);
+    }
+
+    /// <summary>
+    /// Chuẩn hóa định mức tuần của giảng viên (chuyển đổi định mức học kỳ > 30 về định mức tuần / 15).
+    /// </summary>
+    public static (int MinTiet, int MaxTiet) LayDinhMucTuan(int maGiangVien, BoiCanhDanhGia boiCanh)
+    {
+        bool isThinhGiang = boiCanh.GiangVienTheoMa.TryGetValue(maGiangVien, out var gv) &&
+            ((gv.ChucDanh != null && gv.ChucDanh.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase)) ||
+             gv.HoTen.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase));
+
+        int minTiet = isThinhGiang ? 3 : 6;
+        int maxTiet = isThinhGiang ? 16 : 25;
+
+        if (boiCanh.DinhMucTheoGv.TryGetValue(maGiangVien, out var dm))
+        {
+            if (dm.SoTietToiThieu > 0)
+            {
+                minTiet = dm.SoTietToiThieu > 30 ? (int)Math.Ceiling(dm.SoTietToiThieu / 15.0) : dm.SoTietToiThieu;
+            }
+            if (dm.SoTietToiDa > 0)
+            {
+                maxTiet = dm.SoTietToiDa > 30 ? (int)Math.Floor(dm.SoTietToiDa / 15.0) : dm.SoTietToiDa;
+            }
+        }
+
+        return (minTiet, maxTiet);
     }
 
     /// <summary>

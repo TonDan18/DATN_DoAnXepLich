@@ -349,7 +349,7 @@ public class BoDanhGiaPhuongAn
     public double TinhDiemCanBangTai(int maGiangVien, List<int> dsMaLopPhanCong, BoiCanhDanhGia boiCanh, out string canhBao)
     {
         canhBao = string.Empty;
-        if (maGiangVien <= 0 || dsMaLopPhanCong.Count == 0) return 0;
+        if (maGiangVien <= 0 || dsMaLopPhanCong == null) return 0;
 
         var cacBuoiHoc = new List<ChiTietThoiKhoaBieu>();
         foreach (var maLop in dsMaLopPhanCong)
@@ -359,37 +359,39 @@ public class BoDanhGiaPhuongAn
                 cacBuoiHoc.AddRange(dsCt);
             }
         }
-        if (cacBuoiHoc.Count == 0) return 0;
 
-        // Xác định khoảng tuần học của các lớp
-        int minTuanHk = cacBuoiHoc.Min(b => b.TuTuan > 0 ? b.TuTuan : 1);
-        int maxTuanHk = cacBuoiHoc.Max(b => b.DenTuan > 0 ? b.DenTuan : 20);
-        if (minTuanHk <= 0) minTuanHk = 1;
-        if (maxTuanHk < minTuanHk) maxTuanHk = minTuanHk;
-
-        // Tính số tiết thực tế theo từng tuần cụ thể (không cộng dồn các lớp học khác tuần)
         int maxTietTuan = 0; // Tuần cao điểm nhất (Peak week load)
         int tongTietToanKy = 0;
         int soTuanCoDay = 0;
 
-        for (int w = minTuanHk; w <= maxTuanHk; w++)
+        if (cacBuoiHoc.Count > 0)
         {
-            int soTietTuanW = 0;
-            foreach (var b in cacBuoiHoc)
-            {
-                if (w >= b.TuTuan && w <= b.DenTuan)
-                {
-                    soTietTuanW += (b.TietKetThuc >= b.TietBatDau ? b.TietKetThuc - b.TietBatDau + 1 : 0);
-                }
-            }
+            // Xác định khoảng tuần học của các lớp
+            int minTuanHk = cacBuoiHoc.Min(b => b.TuTuan > 0 ? b.TuTuan : 1);
+            int maxTuanHk = cacBuoiHoc.Max(b => b.DenTuan > 0 ? b.DenTuan : 20);
+            if (minTuanHk <= 0) minTuanHk = 1;
+            if (maxTuanHk < minTuanHk) maxTuanHk = minTuanHk;
 
-            if (soTietTuanW > 0)
+            // Tính số tiết thực tế theo từng tuần cụ thể (không cộng dồn các lớp học khác tuần)
+            for (int w = minTuanHk; w <= maxTuanHk; w++)
             {
-                soTuanCoDay++;
-                tongTietToanKy += soTietTuanW;
-                if (soTietTuanW > maxTietTuan)
+                int soTietTuanW = 0;
+                foreach (var b in cacBuoiHoc)
                 {
-                    maxTietTuan = soTietTuanW;
+                    if (w >= b.TuTuan && w <= b.DenTuan)
+                    {
+                        soTietTuanW += (b.TietKetThuc >= b.TietBatDau ? b.TietKetThuc - b.TietBatDau + 1 : 0);
+                    }
+                }
+
+                if (soTietTuanW > 0)
+                {
+                    soTuanCoDay++;
+                    tongTietToanKy += soTietTuanW;
+                    if (soTietTuanW > maxTietTuan)
+                    {
+                        maxTietTuan = soTietTuanW;
+                    }
                 }
             }
         }
@@ -423,7 +425,7 @@ public class BoDanhGiaPhuongAn
             diemPhat = (maxTietTuan - maxTiet) * boiCanh.TrongSoCanBangTai * 1.5;
             canhBao = $"{tenGv} bị quá tải ({maxTietTuan}/{maxTiet} tiết/tuần ở tuần cao điểm).";
         }
-        else if (taiTrungBinhTuan < minTiet && soTuanCoDay > 0)
+        else if (taiTrungBinhTuan < minTiet)
         {
             diemPhat = (minTiet - taiTrungBinhTuan) * boiCanh.TrongSoCanBangTai;
             canhBao = $"{tenGv} bị thiếu tải ({Math.Round(taiTrungBinhTuan, 1)}/{minTiet} tiết/tuần trung bình).";

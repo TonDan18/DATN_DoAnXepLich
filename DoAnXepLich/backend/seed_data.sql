@@ -58,7 +58,7 @@ BEGIN
     VALUES (N'261_CSDL_01', @HpCSDL, @MaHocKy, N'Cơ sở dữ liệu - Nhóm 01', 65, N'DangMo');
     DECLARE @Lhp1 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp1, 2, 1, 3, N'301.A1', 1, 16);
+    VALUES (@Lhp1, 2, 1, 3, N'301.A1', 1, 20);
 END
 
 -- Lớp 2: CSDL Nhóm 2
@@ -69,7 +69,7 @@ BEGIN
     VALUES (N'261_CSDL_02', @HpCSDL2, @MaHocKy, N'Cơ sở dữ liệu - Nhóm 02', 60, N'DangMo');
     DECLARE @Lhp2 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp2, 3, 7, 9, N'302.A1', 1, 16);
+    VALUES (@Lhp2, 3, 7, 9, N'302.A1', 1, 20);
 END
 
 -- Lớp 3: OOP Nhóm 1
@@ -80,7 +80,7 @@ BEGIN
     VALUES (N'261_OOP_01', @HpOOP, @MaHocKy, N'Lập trình hướng đối tượng - 01', 70, N'DangMo');
     DECLARE @Lhp3 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp3, 2, 7, 9, N'205.H1', 1, 16);
+    VALUES (@Lhp3, 2, 7, 9, N'205.H1', 1, 20);
 END
 
 -- Lớp 4: OOP Nhóm 2
@@ -91,7 +91,7 @@ BEGIN
     VALUES (N'261_OOP_02', @HpOOP2, @MaHocKy, N'Lập trình hướng đối tượng - 02', 65, N'DangMo');
     DECLARE @Lhp4 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp4, 4, 1, 3, N'206.H1', 1, 16);
+    VALUES (@Lhp4, 4, 1, 3, N'206.H1', 1, 20);
 END
 
 -- Lớp 5: CTDL & GT Nhóm 1
@@ -102,7 +102,7 @@ BEGIN
     VALUES (N'261_CTDL_01', @HpCTDL, @MaHocKy, N'Cấu trúc dữ liệu và giải thuật - 01', 60, N'DangMo');
     DECLARE @Lhp5 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp5, 3, 1, 3, N'401.A1', 1, 16);
+    VALUES (@Lhp5, 3, 1, 3, N'401.A1', 1, 20);
 END
 
 -- Lớp 6: Web Nhóm 1
@@ -113,7 +113,7 @@ BEGIN
     VALUES (N'261_WEB_01', @HpWeb, @MaHocKy, N'Phát triển ứng dụng Web - 01', 50, N'DangMo');
     DECLARE @Lhp6 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp6, 4, 7, 9, N'PM1.TT', 1, 16);
+    VALUES (@Lhp6, 4, 7, 9, N'PM1.TT', 1, 20);
 END
 
 -- Lớp 7: Mạng máy tính Nhóm 1
@@ -124,7 +124,7 @@ BEGIN
     VALUES (N'261_MMT_01', @HpMMT, @MaHocKy, N'Mạng máy tính - 01', 55, N'DangMo');
     DECLARE @Lhp7 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp7, 5, 1, 3, N'201.A1', 1, 16);
+    VALUES (@Lhp7, 5, 1, 3, N'201.A1', 1, 20);
 END
 
 -- Lớp 8: Trí tuệ nhân tạo Nhóm 1
@@ -135,7 +135,7 @@ BEGIN
     VALUES (N'261_AI_01', @HpAI, @MaHocKy, N'Trí tuệ nhân tạo - 01', 45, N'DangMo');
     DECLARE @Lhp8 INT = SCOPE_IDENTITY();
     INSERT INTO [chi_tiet_thoi_khoa_bieu] ([ma_lop_hoc_phan], [thu], [tiet_bat_dau], [tiet_ket_thuc], [phong_hoc], [tu_tuan], [den_tuan])
-    VALUES (@Lhp8, 6, 1, 3, N'305.A1', 1, 16);
+    VALUES (@Lhp8, 6, 1, 3, N'305.A1', 1, 20);
 END
 
 -- 9. RÀNG BUỘC HỌC KỲ

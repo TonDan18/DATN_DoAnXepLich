@@ -91,21 +91,9 @@ public class CpSatAlgorithmService(
                 lopTheoGv[maGv].Add(maLop);
             }
 
-            // Nếu một lớp không có bất kỳ giảng viên hợp lệ nào => Bài toán vô nghiệm ngay từ miền giá trị
-            if (ungVienTheoLop[maLop].Count == 0)
-            {
-                string msg = $"Lớp [{lop.MaLopHocPhanTruong} - {lop.TenLop}] không có giảng viên nào đủ chuyên môn và rảnh lịch bận cố định.";
-                return new KetQuaXepLichDto
-                {
-                    ThuatToan = TenThuatToan,
-                    TongDiemPhat = 1000,
-                    SoViPhamCung = 1,
-                    SoLopChuaPhanCong = 1,
-                    TrangThai = "VoNghiem",
-                    ThongDiep = msg,
-                    DanhSachViPham = [msg]
-                };
-            }
+            // Nếu một lớp không có bất kỳ giảng viên hợp lệ nào: KHÔNG hủy toàn bộ bài toán.
+            // Lớp này sẽ tự động bị bỏ trống (ungVienTheoLop rỗng => Sum(ứng viên) = 0),
+            // ràng buộc H5 "mềm hóa" ở bước sau cho phép bienBoTrong = 1 trong trường hợp này.
         }
 
         // Tiền xử lý số tiết theo từng tuần của từng lớp học phần
@@ -141,11 +129,23 @@ public class CpSatAlgorithmService(
         }
 
         // 4. Thiết lập HỆ THỐNG 6 RÀNG BUỘC CỨNG (HARD CONSTRAINTS)
-        // (H5) Phủ kín 100% lớp học phần: Mỗi lớp phải do chính xác 1 giảng viên phụ trách
+        // Danh sách các term của hàm mục tiêu (khai báo sớm để dùng ngay trong ràng buộc H5 "mềm hóa")
+        var objectiveTerms = new List<LinearExpr>();
+
+        // (H5) Phủ kín lớp học phần: ưu tiên tuyệt đối mỗi lớp có đúng 1 giảng viên,
+        // nhưng KHÔNG bắt buộc cứng — nếu lớp xung đột không thể giải (ví dụ nhiều lớp
+        // trùng giờ nhưng chỉ có 1 GV đủ chuyên môn), cho phép bỏ trống lớp đó thay vì
+        // làm toàn bộ bài toán Infeasible. Mức phạt "bỏ trống" cực lớn để solver chỉ
+        // chấp nhận bỏ trống khi thực sự không còn cách nào khác thỏa các ràng buộc cứng khác.
+        const long TRONG_SO_BO_TRONG = 10_000_000L;
         foreach (var lop in boiCanh.DanhSachLop)
         {
             var dsBienLop = ungVienTheoLop[lop.MaLopHocPhan].Select(g => xVars[(g, lop.MaLopHocPhan)]).ToList();
-            model.Add(LinearExpr.Sum(dsBienLop) == 1);
+            var bienBoTrong = model.NewBoolVar($"botrong_l{lop.MaLopHocPhan}");
+
+            // Sum(ứng viên) + bienBoTrong == 1: hoặc có đúng 1 GV dạy, hoặc lớp bị bỏ trống
+            model.Add(LinearExpr.Sum(dsBienLop) + bienBoTrong == 1);
+            objectiveTerms.Add(bienBoTrong * TRONG_SO_BO_TRONG);
         }
 
         // (H1) Khống chế trùng lịch giảng viên: Một GV không dạy 2 lớp trùng thời gian
@@ -220,9 +220,9 @@ public class CpSatAlgorithmService(
             }
         }
 
-        // 5. THIẾT LẬP HÀM MỤC TIÊU TỐI ƯU HÓA RÀNG BUỘC MỀM (SOFT CONSTRAINTS)
-        // Tối thiểu hóa tổng chi phí phạt: Z_penalty
-        var objectiveTerms = new List<LinearExpr>();
+        // 5. BỔ SUNG HÀM MỤC TIÊU VỚI CÁC RÀNG BUỘC MỀM KHÁC (SOFT CONSTRAINTS)
+        // Tối thiểu hóa tổng chi phí phạt: Z_penalty (objectiveTerms đã được khai báo và
+        // nạp phạt "bỏ trống lớp" ở bước H5 phía trên)
 
         // w1 * P1: Phạt vi phạm nguyện vọng ca dạy ưu tiên & ưu tiên GV cơ hữu
         foreach (var ((maGv, maLop), xVar) in xVars)
@@ -408,11 +408,25 @@ public class CpSatAlgorithmService(
                 }
             }
 
+            // Các lớp bị bỏ trống (biến botrong = true, hoặc lớp không có ứng viên nào từ đầu):
+            // đánh dấu rõ ràng bằng null để BoDanhGia tính đúng SoLopChuaPhanCong và
+            // LuuKetQuaXepLichService xóa đúng phân công cũ (nếu có) của lớp này.
+            foreach (var lop in boiCanh.DanhSachLop)
+            {
+                if (!phanCongDict.ContainsKey(lop.MaLopHocPhan))
+                {
+                    phanCongDict[lop.MaLopHocPhan] = null;
+                }
+            }
+
             // Đánh giá lại toàn diện bằng BoDanhGiaPhuongAn để kiểm tra ràng buộc cứng trước khi ghi CSDL
             var danhGia = boDanhGia.DanhGia(phanCongDict, boiCanh);
 
-            // Nếu còn vi phạm ràng buộc cứng: TUYỆT ĐỐI KHÔNG GHI CSDL
-            if (!danhGia.HopLe)
+            // Chỉ chặn ghi CSDL khi còn vi phạm ràng buộc cứng THẬT (sai chuyên môn, trùng lịch,
+            // vướng lịch bận cố định). Lớp bị bỏ trống do xung đột không thể giải (SoLopChuaPhanCong)
+            // KHÔNG chặn việc lưu — các lớp đã xếp được vẫn phải được ghi nhận, lớp bỏ trống chỉ cảnh báo.
+            int soViPhamCungThat = danhGia.SoViPhamChuyenMon + danhGia.SoViPhamTrungLich + danhGia.SoViPhamLichBan;
+            if (soViPhamCungThat > 0)
             {
                 return new KetQuaXepLichDto
                 {
@@ -430,12 +444,13 @@ public class CpSatAlgorithmService(
                     ThoiGianChayMiligiay = stopwatch.ElapsedMilliseconds,
                     SoLuongBien = model.Model.Variables.Count,
                     SoLuongRangBuoc = model.Model.Constraints.Count,
-                    ThongDiep = $"CP-SAT tìm thấy nghiệm nhưng còn vi phạm {danhGia.SoViPhamCung} ràng buộc cứng. Không lưu CSDL.",
+                    ThongDiep = $"CP-SAT tìm thấy nghiệm nhưng còn vi phạm {soViPhamCungThat} ràng buộc cứng (sai chuyên môn/trùng lịch/lịch bận). Không lưu CSDL.",
                     DanhSachViPham = danhGia.DanhSachViPham,
                     ChiTietViPham = danhGia.DanhSachCanhBaoMem,
                     DanhSachPhanCong = dsPhanCongDto
                 };
             }
+
 
             // Cập nhật CSDL an toàn thông qua LuuKetQuaXepLichService (có Transaction & bảo vệ lớp DaKhoa)
             var ketQuaLuu = await luuKetQuaService.LuuPhanCongAsync(
@@ -449,6 +464,16 @@ public class CpSatAlgorithmService(
                 ? $" ({ketQuaLuu.SoLopGiuKhoa} lớp đã khóa được giữ nguyên phân công)."
                 : "";
 
+            string thongBaoBoTrong = danhGia.SoLopChuaPhanCong > 0
+                ? $" CẢNH BÁO: {danhGia.SoLopChuaPhanCong} lớp học phần bị BỎ TRỐNG (chưa có giảng viên) do xung đột không thể giải (ví dụ nhiều lớp trùng giờ nhưng không đủ giảng viên đúng chuyên môn); các lớp còn lại đã được phân công đầy đủ và lưu CSDL."
+                : "";
+
+            string trangThaiKetQua = status == CpSolverStatus.Optimal ? "ToiUuToanCuc" : "KhaThi";
+            if (danhGia.SoLopChuaPhanCong > 0)
+            {
+                trangThaiKetQua = "KhaThiMotPhan";
+            }
+
             return new KetQuaXepLichDto
             {
                 ThuatToan = TenThuatToan,
@@ -460,19 +485,20 @@ public class CpSatAlgorithmService(
                 DiemPhatGomLich = danhGia.DiemPhatGomLich,
                 SoViPhamCung = danhGia.SoViPhamCung,
                 SoLopChuaPhanCong = danhGia.SoLopChuaPhanCong,
-                TrangThai = status == CpSolverStatus.Optimal ? "ToiUuToanCuc" : "KhaThi",
+                TrangThai = trangThaiKetQua,
                 ThoiGianChayGiay = Math.Round(stopwatch.Elapsed.TotalSeconds, 2),
                 ThoiGianChayMiligiay = stopwatch.ElapsedMilliseconds,
                 SoLuongBien = model.Model.Variables.Count,
                 SoLuongRangBuoc = model.Model.Constraints.Count,
                 ThongDiep = (status == CpSolverStatus.Optimal
-                    ? "Tìm thấy phương án tối ưu toàn cục (Optimal) thỏa mãn 100% ràng buộc cứng."
-                    : "Tìm thấy phương án khả thi (Feasible) thỏa mãn 100% ràng buộc cứng.") + thongBaoKhoa,
+                    ? "Tìm thấy phương án tối ưu toàn cục (Optimal) thỏa mãn các ràng buộc cứng còn lại."
+                    : "Tìm thấy phương án khả thi (Feasible) thỏa mãn các ràng buộc cứng còn lại.") + thongBaoKhoa + thongBaoBoTrong,
                 DanhSachPhanCong = dsPhanCongDto,
                 DanhSachViPham = danhGia.DanhSachViPham,
                 ChiTietViPham = danhGia.DanhSachCanhBaoMem
             };
         }
+
 
         string lyDo = status == CpSolverStatus.Infeasible
             ? "Bộ giải CP-SAT chứng minh bài toán không có nghiệm khả thi (Infeasible) do xung đột giữa các ràng buộc cứng (trùng lịch học, thiếu giảng viên đúng chuyên môn hoặc các lớp bị khóa cố định)."

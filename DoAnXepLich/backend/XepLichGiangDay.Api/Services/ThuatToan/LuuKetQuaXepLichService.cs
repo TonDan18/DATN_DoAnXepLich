@@ -51,7 +51,16 @@ public class LuuKetQuaXepLichService(
 
             foreach (var (maLop, maGvOpt) in phanCongLop)
             {
-                if (!maGvOpt.HasValue || maGvOpt.Value <= 0) continue;
+                if (!maGvOpt.HasValue || maGvOpt.Value <= 0)
+                {
+                    // Lớp bị bỏ trống (không tìm được giảng viên thỏa mãn ràng buộc cứng):
+                    // nếu đang có phân công cũ chưa khóa, xóa đi để phản ánh đúng trạng thái "chưa phân công".
+                    if (mapPc.TryGetValue(maLop, out var pcCu) && pcCu.TrangThai != "DaKhoa")
+                    {
+                        context.PhanCongGiangDay.Remove(pcCu);
+                    }
+                    continue;
+                }
                 int maGv = maGvOpt.Value;
                 double diemPhat = Math.Round(boDanhGia.TinhDiemNguyenVong(maGv, maLop, boiCanh), 1);
 

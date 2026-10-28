@@ -146,7 +146,7 @@ public class CpSatAlgorithmTests
 
         var (min1, max1) = BoDanhGiaPhuongAn.LayDinhMucTuan(1, boiCanh);
         Assert.Equal(6, min1);   // 90 / 15 = 6
-        Assert.Equal(20, max1);  // 300 / 15 = 20
+        Assert.Equal(25, max1);  // Khong ap tran hoc ky, toi da tuan co huu la 25 tiet
 
         // GV 2: Khai báo định mức theo tuần (<= 30) -> 4 tiết tối thiểu, 14 tiết tối đa
         boiCanh.DinhMucTheoGv[2] = new DinhMucGiangVien
@@ -159,6 +159,29 @@ public class CpSatAlgorithmTests
         var (min2, max2) = BoDanhGiaPhuongAn.LayDinhMucTuan(2, boiCanh);
         Assert.Equal(4, min2);
         Assert.Equal(14, max2);
+    }
+
+    [Fact]
+    public void Test_CpSat_GiangVienCoHuu12TietTuan_KhongBiQuaTai()
+    {
+        var boiCanh = new BoiCanhDanhGia();
+        boiCanh.GiangVienTheoMa[1] = new GiangVien { MaGiangVien = 1, HoTen = "Lê Văn Minh", ChucDanh = "Giảng viên" };
+        boiCanh.DinhMucTheoGv[1] = new DinhMucGiangVien { MaGiangVien = 1, SoTietToiThieu = 60, SoTietToiDa = 120 };
+
+        var (minTiet, maxTiet) = BoDanhGiaPhuongAn.LayDinhMucTuan(1, boiCanh);
+        Assert.Equal(25, maxTiet);
+
+        boiCanh.ChiTietTheoLop[1] = [new() { MaChiTiet = 1, MaLopHocPhan = 1, Thu = 2, TietBatDau = 7, TietKetThuc = 9, TuTuan = 1, DenTuan = 8 }];
+        boiCanh.ChiTietTheoLop[2] = [new() { MaChiTiet = 2, MaLopHocPhan = 2, Thu = 2, TietBatDau = 10, TietKetThuc = 12, TuTuan = 1, DenTuan = 8 }];
+        boiCanh.ChiTietTheoLop[3] = [new() { MaChiTiet = 3, MaLopHocPhan = 3, Thu = 3, TietBatDau = 4, TietKetThuc = 6, TuTuan = 1, DenTuan = 8 }];
+        boiCanh.ChiTietTheoLop[4] = [new() { MaChiTiet = 4, MaLopHocPhan = 4, Thu = 5, TietBatDau = 10, TietKetThuc = 12, TuTuan = 1, DenTuan = 8 }];
+
+        var boKiemTra = new BoKiemTraRangBuoc();
+        var boDanhGia = new BoDanhGiaPhuongAn(null!, boKiemTra);
+
+        double diemPhat = boDanhGia.TinhDiemCanBangTai(1, [1, 2, 3, 4], boiCanh, out string canhBao);
+        Assert.Equal(0, diemPhat);
+        Assert.Empty(canhBao);
     }
 
     [Fact]
@@ -194,7 +217,7 @@ public class CpSatAlgorithmTests
 
         var result = await cpSatService.ChayAsync(new DuLieuXepLichDto { MaHocKy = 1, ThoiGianChayToiDa = 5.0 });
 
-        Assert.Equal("VoNghiem", result.TrangThai);
+        Assert.Equal("KhaThiMotPhan", result.TrangThai);
         Assert.Equal(1, result.SoViPhamCung);
         Assert.Equal(1, result.SoLopChuaPhanCong);
         Assert.NotEmpty(result.DanhSachViPham);

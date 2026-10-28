@@ -443,7 +443,7 @@ public class BoDanhGiaPhuongAn
             }
             if (dm.SoTietToiDa > 0)
             {
-                maxTiet = dm.SoTietToiDa > 30 ? (int)Math.Floor(dm.SoTietToiDa / 15.0) : dm.SoTietToiDa;
+                maxTiet = (dm.SoTietToiDa > 0 && dm.SoTietToiDa <= (isThinhGiang ? 16 : 25)) ? dm.SoTietToiDa : (isThinhGiang ? 16 : 25);
             }
         }
 

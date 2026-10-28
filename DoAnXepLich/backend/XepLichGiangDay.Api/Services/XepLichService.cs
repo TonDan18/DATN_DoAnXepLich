@@ -447,13 +447,20 @@ public class XepLichService(
             }
 
             // Đánh giá trạng thái tải so với định mức cả học kỳ (mặc định 60 - 120 tiết)
-            int tongSoTietHocKy = item.TongSoTinChi > 0 ? (item.TongSoTinChi * 15) : (item.TongSoTietTuan * 15);
+            bool isThinhGiang = (gv.ChucDanh != null && gv.ChucDanh.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase)) ||
+                                gv.HoTen.Contains("Thỉnh giảng", StringComparison.OrdinalIgnoreCase);
+            int maxTuanChuan = isThinhGiang ? 16 : 25;
+            int minTuanChuan = isThinhGiang ? 3 : 6;
+            int maxTietTuanGv = (item.SoTietToiDa > 0 && item.SoTietToiDa <= maxTuanChuan) ? item.SoTietToiDa : maxTuanChuan;
+            int minTietTuanGv = item.SoTietToiThieu > 0 ? (item.SoTietToiThieu <= 30 ? item.SoTietToiThieu : (int)Math.Ceiling(item.SoTietToiThieu / 15.0)) : minTuanChuan;
+            item.SoTietToiThieu = minTietTuanGv;
+            item.SoTietToiDa = maxTietTuanGv;
 
-            if (item.SoTietToiDa > 0 && tongSoTietHocKy > item.SoTietToiDa)
+            if (item.TongSoTietTuan > maxTietTuanGv)
             {
                 item.TrangThaiTai = "QuaTai";
             }
-            else if (item.SoTietToiThieu > 0 && tongSoTietHocKy < item.SoTietToiThieu)
+            else if (item.SoLopPhanCong > 0 && item.TongSoTietTuan < minTietTuanGv)
             {
                 item.TrangThaiTai = "ThieuTai";
             }

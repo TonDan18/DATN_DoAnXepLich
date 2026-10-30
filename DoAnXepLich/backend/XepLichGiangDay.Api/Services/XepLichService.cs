@@ -478,6 +478,25 @@ public class XepLichService(
     /// <summary>
     /// Xuất toàn bộ bảng phân công thời khóa biểu và thống kê tải của học kỳ ra file Excel.
     /// </summary>
+    /// <summary>
+    /// Lấy số liệu tổng quan quy mô học kỳ phục vụ Dashboard.
+    /// </summary>
+    public async Task<SoSanhThuatToanDto> LayThongTinTongQuanHocKyAsync(int maHocKy, CancellationToken cancellationToken = default)
+    {
+        var hocKy = await context.HocKy.FirstOrDefaultAsync(x => x.MaHocKy == maHocKy, cancellationToken);
+        var tenHocKy = hocKy?.TenHocKy ?? $"Học kỳ {maHocKy}";
+        var tongSoLop = await context.LopHocPhan.CountAsync(x => x.MaHocKy == maHocKy, cancellationToken);
+        var tongSoGv = await context.GiangVien.CountAsync(x => x.TrangThai != "NghiViec", cancellationToken);
+
+        return new SoSanhThuatToanDto
+        {
+            MaHocKy = maHocKy,
+            TenHocKy = tenHocKy,
+            TongSoLop = tongSoLop,
+            TongSoGiangVien = tongSoGv
+        };
+    }
+
     public async Task<byte[]> XuatExcelBangPhanCongAsync(int maHocKy, CancellationToken cancellationToken = default)
     {
         var bangPhanCong = await LayBangPhanCongAsync(maHocKy, cancellationToken);

@@ -1,3 +1,4 @@
+﻿import Dashboard from './pages/Dashboard/Dashboard'
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import MainLayout from './layouts/MainLayout'
@@ -41,6 +42,9 @@ function TrangChuRedirect() {
   if (user?.vaiTro === 'Admin') {
     return <Navigate to="/tai-khoan" replace />
   }
+  if (user?.vaiTro === 'TruongBoMon') {
+    return <Navigate to="/dashboard" replace />
+  }
   return <Navigate to="/thoi-khoa-bieu" replace />
 }
 
@@ -54,6 +58,7 @@ const router = createBrowserRouter([
     element: <ProtectedLayout />,
     children: [
       { index: true, element: <TrangChuRedirect /> },
+      { path: 'dashboard', element: <Dashboard /> },
       { path: 'nam-hoc', element: <DanhSachNamHoc /> },
       { path: 'hoc-ky', element: <DanhSachHocKy /> },
       { path: 'bo-mon', element: <DanhSachBoMon /> },

@@ -3,6 +3,7 @@ import type {
   BangPhanCongHocKy,
   KetQuaPhanCongThuCong,
   KetQuaXepLich,
+  SoSanhThuatToan,
   ThongKeTaiGv,
   YeuCauPhanCongThuCong,
   YeuCauXepLich,
@@ -11,6 +12,9 @@ import type {
 export const xepLichApi = {
   chayXepLich: (data: YeuCauXepLich) =>
     axiosClient.post<KetQuaXepLich>('/xep-lich', data),
+
+  soSanhThuatToan: (data: Partial<YeuCauXepLich>) =>
+    axiosClient.post<SoSanhThuatToan>('/xep-lich/so-sanh-thuat-toan', data),
 
   layBangPhanCong: (maHocKy: number) =>
     axiosClient.get<BangPhanCongHocKy>(`/xep-lich/bang-phan-cong/${maHocKy}`),

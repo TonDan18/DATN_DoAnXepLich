@@ -422,37 +422,7 @@ public class CpSatAlgorithmService(
             // Đánh giá lại toàn diện bằng BoDanhGiaPhuongAn để kiểm tra ràng buộc cứng trước khi ghi CSDL
             var danhGia = boDanhGia.DanhGia(phanCongDict, boiCanh);
 
-            // Chỉ chặn ghi CSDL khi còn vi phạm ràng buộc cứng THẬT (sai chuyên môn, trùng lịch,
-            // vướng lịch bận cố định). Lớp bị bỏ trống do xung đột không thể giải (SoLopChuaPhanCong)
-            // KHÔNG chặn việc lưu — các lớp đã xếp được vẫn phải được ghi nhận, lớp bỏ trống chỉ cảnh báo.
-            int soViPhamCungThat = danhGia.SoViPhamChuyenMon + danhGia.SoViPhamTrungLich + danhGia.SoViPhamLichBan;
-            if (soViPhamCungThat > 0)
-            {
-                return new KetQuaXepLichDto
-                {
-                    ThuatToan = TenThuatToan,
-                    TrangThai = "ConViPham",
-                    TongDiemPhat = danhGia.TongDiemPhat,
-                    DoThichNghi = danhGia.DoThichNghi,
-                    DiemPhatRangBuocCung = danhGia.DiemPhatRangBuocCung,
-                    DiemPhatNguyenVong = danhGia.DiemPhatNguyenVong,
-                    DiemPhatCanBangTai = danhGia.DiemPhatCanBangTai,
-                    DiemPhatGomLich = danhGia.DiemPhatGomLich,
-                    SoViPhamCung = danhGia.SoViPhamCung,
-                    SoLopChuaPhanCong = danhGia.SoLopChuaPhanCong,
-                    ThoiGianChayGiay = Math.Round(stopwatch.Elapsed.TotalSeconds, 2),
-                    ThoiGianChayMiligiay = stopwatch.ElapsedMilliseconds,
-                    SoLuongBien = model.Model.Variables.Count,
-                    SoLuongRangBuoc = model.Model.Constraints.Count,
-                    ThongDiep = $"CP-SAT tìm thấy nghiệm nhưng còn vi phạm {soViPhamCungThat} ràng buộc cứng (sai chuyên môn/trùng lịch/lịch bận). Không lưu CSDL.",
-                    DanhSachViPham = danhGia.DanhSachViPham,
-                    ChiTietViPham = danhGia.DanhSachCanhBaoMem,
-                    DanhSachPhanCong = dsPhanCongDto
-                };
-            }
-
-
-            // Cập nhật CSDL an toàn thông qua LuuKetQuaXepLichService (có Transaction & bảo vệ lớp DaKhoa)
+            // Cập nhật CSDL thông qua LuuKetQuaXepLichService (có Transaction & bảo vệ lớp DaKhoa)
             var ketQuaLuu = await luuKetQuaService.LuuPhanCongAsync(
                 duLieu.MaHocKy,
                 TenThuatToan,
@@ -465,13 +435,28 @@ public class CpSatAlgorithmService(
                 : "";
 
             string thongBaoBoTrong = danhGia.SoLopChuaPhanCong > 0
-                ? $" CẢNH BÁO: {danhGia.SoLopChuaPhanCong} lớp học phần bị BỎ TRỐNG (chưa có giảng viên) do xung đột không thể giải (ví dụ nhiều lớp trùng giờ nhưng không đủ giảng viên đúng chuyên môn); các lớp còn lại đã được phân công đầy đủ và lưu CSDL."
+                ? $" CẢNH BÁO: {danhGia.SoLopChuaPhanCong} lớp học phần bị BỎ TRỐNG (chưa có giảng viên) do xung đột không thể giải; các lớp còn lại đã được phân công đầy đủ và lưu CSDL."
                 : "";
 
-            string trangThaiKetQua = status == CpSolverStatus.Optimal ? "ToiUuToanCuc" : "KhaThi";
-            if (danhGia.SoLopChuaPhanCong > 0)
+            int soViPhamCungThat = danhGia.SoViPhamChuyenMon + danhGia.SoViPhamTrungLich + danhGia.SoViPhamLichBan;
+            string trangThaiKetQua;
+            string thongDiepKetQua;
+
+            if (soViPhamCungThat > 0)
             {
-                trangThaiKetQua = "KhaThiMotPhan";
+                trangThaiKetQua = "ConViPham";
+                thongDiepKetQua = $"CP-SAT tìm thấy nghiệm và đã lưu vào CSDL (Nguồn: CP_SAT). CẢNH BÁO: Còn vi phạm {soViPhamCungThat} ràng buộc cứng." + thongBaoKhoa;
+            }
+            else
+            {
+                trangThaiKetQua = status == CpSolverStatus.Optimal ? "ToiUuToanCuc" : "KhaThi";
+                if (danhGia.SoLopChuaPhanCong > 0)
+                {
+                    trangThaiKetQua = "KhaThiMotPhan";
+                }
+                thongDiepKetQua = (status == CpSolverStatus.Optimal
+                    ? "Tìm thấy phương án tối ưu toàn cục (Optimal) thỏa mãn các ràng buộc cứng còn lại."
+                    : "Tìm thấy phương án khả thi (Feasible) thỏa mãn các ràng buộc cứng còn lại.") + thongBaoKhoa + thongBaoBoTrong;
             }
 
             return new KetQuaXepLichDto

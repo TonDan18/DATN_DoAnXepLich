@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+﻿import { NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 const adminMenuItems = [
@@ -15,6 +15,7 @@ const adminMenuItems = [
 ]
 
 const truongBoMonMenuItems = [
+  { path: '/dashboard', label: '📊 Tổng quan & So sánh' },
   { path: '/giang-vien', label: 'Quản lý giảng viên' },
   { path: '/hoc-phan', label: 'Quản lý học phần' },
   { path: '/thoi-khoa-bieu', label: 'Thời khóa biểu' },

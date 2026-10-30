@@ -832,10 +832,10 @@ public class GeneticAlgorithmTests
         Assert.Equal("ConViPham", kq.TrangThai);
         Assert.True(kq.SoViPhamCung > 0);
 
-        // Bảng phân công hiện tại KHÔNG bị ghi đè (Database Safety Guard)
+        // Bảng phân công được ghi nhận kết quả của GA để phục vụ báo cáo và so sánh
         var pcHienTai = await db.PhanCongGiangDay.Where(x => x.MaHocKy == 1).ToListAsync();
-        Assert.Single(pcHienTai);
-        Assert.Equal("Goc", pcHienTai[0].NguonPhanCong);
+        Assert.NotEmpty(pcHienTai);
+        Assert.All(pcHienTai, pc => Assert.Equal("GA", pc.NguonPhanCong));
     }
 
     private static AppDbContext TaoInMemoryDbContext(string dbName)

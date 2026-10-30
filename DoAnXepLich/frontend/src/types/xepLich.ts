@@ -39,6 +39,15 @@ export interface KetQuaXepLich {
   chiTietViPham?: string[]
 }
 
+export interface SoSanhThuatToan {
+  maHocKy: number
+  tenHocKy: string
+  tongSoLop: number
+  tongSoGiangVien: number
+  ketQuaCpSat: KetQuaXepLich
+  ketQuaGa: KetQuaXepLich
+}
+
 export interface UngVienLop {
   maGiangVien: number
   hoTen: string

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using XepLichGiangDay.Api.DTOs.XepLich;
 using XepLichGiangDay.Api.Services;
 using XepLichGiangDay.Api.Services.ThuatToan;
@@ -128,5 +128,67 @@ public class XepLichController(
         var bytes = await xepLichService.XuatExcelBangPhanCongAsync(maHocKy, cancellationToken);
         var tenFile = $"ThoiKhoaBieu_PhanCong_HocKy_{maHocKy}.xlsx";
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", tenFile);
+    }
+
+    /// <summary>
+    /// Chạy đối đầu thực nghiệm 2 thuật toán CP-SAT và GA trên cùng một học kỳ để so sánh trên Dashboard.
+    /// </summary>
+    [HttpPost("so-sanh-thuat-toan")]
+    public async Task<ActionResult<SoSanhThuatToanDto>> SoSanhThuatToan([FromBody] YeuCauXepLichDto request, CancellationToken cancellationToken)
+    {
+        var cpSatAlgo = algorithms.FirstOrDefault(x => x.TenThuatToan == "CP_SAT");
+        var gaAlgo = algorithms.FirstOrDefault(x => x.TenThuatToan == "GA");
+
+        if (cpSatAlgo == null || gaAlgo == null)
+        {
+            return BadRequest("Không tìm thấy đủ 2 thuật toán CP-SAT và GA trong hệ thống.");
+        }
+
+        var sem = lockService.GetLock(request.MaHocKy);
+        if (!await sem.WaitAsync(0, cancellationToken))
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Xung đột tiến trình xếp lịch",
+                Detail = $"Học kỳ {request.MaHocKy} đang có tiến trình khác thực thi. Vui lòng thử lại sau.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        try
+        {
+            var tongQuan = await xepLichService.LayThongTinTongQuanHocKyAsync(request.MaHocKy, cancellationToken);
+
+            // 1. Chạy CP-SAT
+            var duLieuCpSat = new DuLieuXepLichDto
+            {
+                MaHocKy = request.MaHocKy,
+                ThuatToan = "CP_SAT",
+                ThoiGianChayToiDa = request.ThoiGianChayToiDa > 0 ? request.ThoiGianChayToiDa : 15,
+                SoLuongWorker = 1
+            };
+            var kqCpSat = await cpSatAlgo.ChayAsync(duLieuCpSat, cancellationToken);
+
+            // 2. Chạy GA
+            var duLieuGa = new DuLieuXepLichDto
+            {
+                MaHocKy = request.MaHocKy,
+                ThuatToan = "GA",
+                KichThuocQuanThe = request.KichThuocQuanThe > 0 ? request.KichThuocQuanThe : 50,
+                SoTheHe = request.SoTheHe > 0 ? request.SoTheHe : 100,
+                TyLeLaiGhep = request.TyLeLaiGhep > 0 ? request.TyLeLaiGhep : 0.8,
+                TyLeDotBien = request.TyLeDotBien > 0 ? request.TyLeDotBien : 0.15
+            };
+            var kqGa = await gaAlgo.ChayAsync(duLieuGa, cancellationToken);
+
+            tongQuan.KetQuaCpSat = kqCpSat;
+            tongQuan.KetQuaGa = kqGa;
+
+            return Ok(tongQuan);
+        }
+        finally
+        {
+            sem.Release();
+        }
     }
 }

@@ -263,69 +263,7 @@ public class GeneticAlgorithmService(
             }
         }
 
-        bool isRelational = context.Database.IsRelational();
-
-        // 10. XỬ LÝ LƯU CSDL VỚI CƠ CHẾ BẢO VỆ DỮ LIỆU (Database Safety Guard)
-        // Nếu còn vi phạm ràng buộc cứng (SoViPhamCung > 0): TUYỆT ĐỐI KHÔNG GHI ĐÈ bảng phan_cong_giang_day
-        if (finalCheck.SoViPhamCung > 0)
-        {
-            // Chỉ ghi nhận nhật ký thất bại vào ket_qua_xep_lich mà không phá hỏng phân công đang có
-            var transLog = isRelational ? await context.Database.BeginTransactionAsync(cancellationToken) : null;
-            try
-            {
-                var oldKq = await context.KetQuaXepLich.Where(x => x.MaHocKy == duLieu.MaHocKy).ToListAsync(cancellationToken);
-                context.KetQuaXepLich.RemoveRange(oldKq);
-
-                foreach (var gen in bestOverall.DanhSachGen)
-                {
-                    if (gen.MaGiangVien.HasValue && gen.MaGiangVien.Value > 0)
-                    {
-                        context.KetQuaXepLich.Add(new KetQuaXepLich
-                        {
-                            MaHocKy = duLieu.MaHocKy,
-                            MaLopHocPhan = gen.MaLopHocPhan,
-                            MaGiangVien = gen.MaGiangVien.Value,
-                            DiemPhat = finalCheck.TongDiemPhat,
-                            GhiChu = $"GA thế hệ {theHeThucTe} (Chưa thỏa mãn {finalCheck.SoViPhamCung} ràng buộc cứng)"
-                        });
-                    }
-                }
-                await context.SaveChangesAsync(cancellationToken);
-                if (transLog != null) await transLog.CommitAsync(cancellationToken);
-            }
-            catch
-            {
-                if (transLog != null) await transLog.RollbackAsync(cancellationToken);
-            }
-            finally
-            {
-                transLog?.Dispose();
-            }
-
-            return new KetQuaXepLichDto
-            {
-                ThuatToan = TenThuatToan,
-                TongDiemPhat = finalCheck.TongDiemPhat,
-                DoThichNghi = finalCheck.DoThichNghi,
-                DiemPhatRangBuocCung = finalCheck.DiemPhatRangBuocCung,
-                DiemPhatNguyenVong = finalCheck.DiemPhatNguyenVong,
-                DiemPhatCanBangTai = finalCheck.DiemPhatCanBangTai,
-                DiemPhatGomLich = finalCheck.DiemPhatGomLich,
-                SoViPhamCung = finalCheck.SoViPhamCung,
-                SoLopChuaPhanCong = finalCheck.SoLopChuaPhanCong,
-                SoTheHeThucTe = theHeThucTe,
-                ThoiGianChayMiligiay = sw.ElapsedMilliseconds,
-                ThoiGianChayGiay = Math.Round(sw.Elapsed.TotalSeconds, 2),
-                TrangThai = "ConViPham",
-                ThongDiep = $"Thuật toán GA đã chạy qua {theHeThucTe} thế hệ nhưng chưa tìm thấy phương án thỏa mãn 100% ràng buộc cứng (còn {finalCheck.SoViPhamCung} vi phạm). Hệ thống không ghi đè phân công hiện tại để bảo toàn tính toàn vẹn dữ liệu.",
-                LichSuDiemPhatTheoTheHe = lichSuDiemPhat,
-                DanhSachViPham = finalCheck.DanhSachViPham,
-                ChiTietViPham = finalCheck.DanhSachCanhBaoMem,
-                DanhSachPhanCong = dsPhanCongDto
-            };
-        }
-
-        // KHI NGHIỆM THỎA MÃN 100% RÀNG BUỘC CỨNG: Cập nhật CSDL an toàn qua LuuKetQuaXepLichService
+        // 10. GHI ĐÈ KẾT QUẢ VÀO CSDL (Đảm bảo đồ án luôn lưu và hiển thị kết quả của thuật toán vừa chạy)
         var dictPhanCongCuoi = bestOverall.DanhSachGen.ToDictionary(g => g.MaLopHocPhan, g => (int?)g.MaGiangVien);
         var ketQuaLuu = await luuKetQuaService.LuuPhanCongAsync(
             duLieu.MaHocKy,
@@ -338,33 +276,46 @@ public class GeneticAlgorithmService(
             ? $" ({ketQuaLuu.SoLopGiuKhoa} lớp đã khóa được giữ nguyên phân công)."
             : "";
 
-        string trangThaiKetQua = finalCheck.TongDiemPhatMem <= 0.0001
-            ? "ToiUuTuyetDoi"
-            : "ThoaManRangBuocCung";
+        string trangThaiKetQua;
+        string thongDiepKetQua;
 
-            return new KetQuaXepLichDto
-            {
-                ThuatToan = TenThuatToan,
-                TongDiemPhat = finalCheck.TongDiemPhat,
-                DoThichNghi = finalCheck.DoThichNghi,
-                DiemPhatRangBuocCung = finalCheck.DiemPhatRangBuocCung,
-                DiemPhatNguyenVong = finalCheck.DiemPhatNguyenVong,
-                DiemPhatCanBangTai = finalCheck.DiemPhatCanBangTai,
-                DiemPhatGomLich = finalCheck.DiemPhatGomLich,
-                SoViPhamCung = 0,
-                SoLopChuaPhanCong = finalCheck.SoLopChuaPhanCong,
-                SoTheHeThucTe = theHeThucTe,
-                ThoiGianChayMiligiay = sw.ElapsedMilliseconds,
-                ThoiGianChayGiay = Math.Round(sw.Elapsed.TotalSeconds, 2),
-                TrangThai = trangThaiKetQua,
-                ThongDiep = (trangThaiKetQua == "ToiUuTuyetDoi"
-                    ? $"GA tìm thấy phương án tối ưu tuyệt đối (điểm phạt = 0) tại thế hệ {theHeThucTe}."
-                    : $"GA tìm thấy phương án thỏa mãn 100% ràng buộc cứng sau {theHeThucTe} thế hệ (Tổng điểm phạt mềm: {Math.Round(finalCheck.TongDiemPhatMem, 1)}).") + thongBaoKhoa,
-                LichSuDiemPhatTheoTheHe = lichSuDiemPhat,
-                DanhSachViPham = finalCheck.DanhSachViPham,
-                ChiTietViPham = finalCheck.DanhSachCanhBaoMem,
-                DanhSachPhanCong = dsPhanCongDto
-            };
+        if (finalCheck.SoViPhamCung > 0)
+        {
+            trangThaiKetQua = "ConViPham";
+            thongDiepKetQua = $"Thuật toán GA đã chạy qua {theHeThucTe} thế hệ và đã lưu kết quả vào CSDL (Nguồn: GA). CẢNH BÁO: Còn {finalCheck.SoViPhamCung} vi phạm ràng buộc cứng (Tổng điểm phạt: {Math.Round(finalCheck.TongDiemPhat, 1)})." + thongBaoKhoa;
+        }
+        else if (finalCheck.TongDiemPhatMem <= 0.0001)
+        {
+            trangThaiKetQua = "ToiUuTuyetDoi";
+            thongDiepKetQua = $"GA tìm thấy phương án tối ưu tuyệt đối (điểm phạt = 0) tại thế hệ {theHeThucTe}." + thongBaoKhoa;
+        }
+        else
+        {
+            trangThaiKetQua = "ThoaManRangBuocCung";
+            thongDiepKetQua = $"GA tìm thấy phương án thỏa mãn 100% ràng buộc cứng sau {theHeThucTe} thế hệ (Tổng điểm phạt mềm: {Math.Round(finalCheck.TongDiemPhatMem, 1)})." + thongBaoKhoa;
+        }
+
+        return new KetQuaXepLichDto
+        {
+            ThuatToan = TenThuatToan,
+            TongDiemPhat = finalCheck.TongDiemPhat,
+            DoThichNghi = finalCheck.DoThichNghi,
+            DiemPhatRangBuocCung = finalCheck.DiemPhatRangBuocCung,
+            DiemPhatNguyenVong = finalCheck.DiemPhatNguyenVong,
+            DiemPhatCanBangTai = finalCheck.DiemPhatCanBangTai,
+            DiemPhatGomLich = finalCheck.DiemPhatGomLich,
+            SoViPhamCung = finalCheck.SoViPhamCung,
+            SoLopChuaPhanCong = finalCheck.SoLopChuaPhanCong,
+            SoTheHeThucTe = theHeThucTe,
+            ThoiGianChayMiligiay = sw.ElapsedMilliseconds,
+            ThoiGianChayGiay = Math.Round(sw.Elapsed.TotalSeconds, 2),
+            TrangThai = trangThaiKetQua,
+            ThongDiep = thongDiepKetQua,
+            LichSuDiemPhatTheoTheHe = lichSuDiemPhat,
+            DanhSachViPham = finalCheck.DanhSachViPham,
+            ChiTietViPham = finalCheck.DanhSachCanhBaoMem,
+            DanhSachPhanCong = dsPhanCongDto
+        };
     }
 
     private static CaThe SaoChepCaThe(CaThe goc)
